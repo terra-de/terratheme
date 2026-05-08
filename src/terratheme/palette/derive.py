@@ -141,10 +141,12 @@ def _derive_on_error(
     c1: tuple[int, int, int],
     mode: str,
 ) -> tuple[int, int, int]:
-    """Readable colour on error, blended slightly toward c1."""
-    target_l = 0.90 if mode == "dark" else 0.10
-    base = (255, 255, 255) if mode == "dark" else (0, 0, 0)
-    r, g, b = adjust_tone(float(base[0]), float(base[1]), float(base[2]), target_l)
+    """Readable colour on error, blended slightly toward c1.
+
+    Error is always a dark red regardless of mode, so on_error always
+    targets a light tone for readability.
+    """
+    r, g, b = adjust_tone(255.0, 255.0, 255.0, 0.90)
     r, g, b = blend((r, g, b), (float(c1[0]), float(c1[1]), float(c1[2])), 0.15)
     return clamp_rgb(r, g, b)
 

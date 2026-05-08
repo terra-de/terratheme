@@ -80,10 +80,11 @@ class TestDerive:
                 int(hex_str[1:], 16)  # will raise if invalid
 
     def test_mode_sensitive_tokens_differ(self) -> None:
-        """Backgrounds, text, outlines, and on_error differ per mode.
+        """Backgrounds, text, and outlines differ per mode.
 
-        Raw source colours (c0-c4) and error base are the same in both
-        modes — they're fixed image characteristics.
+        Raw source colours (c0-c4), error base, and on_error are the
+        same in both modes — error is always a dark red regardless
+        of mode, so on_error is always light for readability.
         """
         palette = derive_palette(self.sources, mode="dark")
         dark = palette["dark"]
@@ -91,14 +92,14 @@ class TestDerive:
 
         # Should differ between modes
         mode_sensitive = {"back", "base", "front", "top", "standard", "muted",
-                          "outline", "on_error"}
+                          "outline"}
         for name in mode_sensitive:
             assert dark[name] != light[name], (
                 f"token {name} is identical across modes: {dark[name]}"
             )
 
         # Should be identical between modes (raw source or fixed derivation)
-        mode_stable = {"c0", "c1", "c2", "c3", "c4", "error",
+        mode_stable = {"c0", "c1", "c2", "c3", "c4", "error", "on_error",
                        "on_c0", "on_c1", "on_c2", "on_c3", "on_c4"}
         for name in mode_stable:
             assert dark[name] == light[name], (
