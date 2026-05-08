@@ -13,6 +13,7 @@ from terratheme.palette.color_utils import (
     contrast_ratio,
     hsl_to_rgb,
     reduce_chroma,
+    relative_luminance,
     rgb_hex,
     rgb_to_hsl,
 )
@@ -96,21 +97,23 @@ def _derive_on_color(
 ) -> tuple[int, int, int]:
     """Adjust an accent source colour for readability on *base_color*.
 
-    Shifts the accent's tone to contrast against the base, and slightly
-    boosts chroma for visual interest.
+    Uses WCAG relative luminance to determine whether the on-color should
+    be light or dark, then shifts the accent's tone for contrast and
+    slightly boosts chroma for visual interest.
     """
-    _h, _s, base_l = rgb_to_hsl(float(base_color[0]), float(base_color[1]), float(base_color[2]))
+    base_lum = relative_luminance(*base_color)
     src_h, src_s, _src_l = rgb_to_hsl(
         float(accent_source[0]), float(accent_source[1]), float(accent_source[2]),
     )
 
-    # Pick a target tone opposite to the base
-    if base_l < 0.4:
-        target_tone = 0.80  # light on dark
-    elif base_l > 0.6:
-        target_tone = 0.20  # dark on light
+    # The equal-contrast point (where light and dark text give the same
+    # WCAG ratio against the base) is at base luminance ~0.20, but since
+    # HSL→WCAG luminance mapping is hue-dependent, a small buffer at 0.21
+    # prevents flip-flopping for borderline mid-tone bases.
+    if base_lum < 0.21:
+        target_tone = 0.85  # light on dark
     else:
-        target_tone = 0.80 if base_l < 0.5 else 0.20
+        target_tone = 0.15  # dark on light
 
     # Boost chroma slightly (cap at 1.0)
     chroma = min(src_s * 1.2, 1.0)
