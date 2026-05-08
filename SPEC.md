@@ -128,10 +128,13 @@ outline
 ## CLI
 
 ```bash
-terratheme extract <image>                  # Show 5 source colors (already implemented)
-terratheme generate <image>                 # Full palette.json → stdout
-terratheme generate <image> --mode dark     # Force dark mode
-terratheme generate <image> --mode light    # Force light mode
+terratheme extract <image>                       # Show 5 source colors
+terratheme generate <image>                      # Full palette.json → ~/.config/terra/palette.json
+terratheme generate <image> --mode dark          # Force dark mode
+terratheme generate <image> --mode light         # Force light mode
+terratheme generate <image> --stdout             # Print JSON to stdout (pipe-friendly)
+terratheme generate <image> --output custom.json # Write to custom path
+terratheme generate <image> --visualize          # Terminal preview (no file write)
 ```
 
 ## Key Design Principles
