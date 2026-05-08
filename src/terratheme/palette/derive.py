@@ -60,7 +60,7 @@ def _derive_background(
     tones = DARK_BG_TONES if mode == "dark" else LIGHT_BG_TONES
     target = tones[layer_index]
     r, g, b = adjust_tone(float(source[0]), float(source[1]), float(source[2]), target)
-    r, g, b = reduce_chroma(r, g, b, factor=0.30)
+    r, g, b = reduce_chroma(r, g, b, factor=0.55)
     return clamp_rgb(r, g, b)
 
 
@@ -125,7 +125,7 @@ def _derive_outline(
     """Derive outline from c0 by shifting in the opposite direction of *mode*."""
     target_l = 0.40 if mode == "dark" else 0.60
     r, g, b = adjust_tone(float(c0[0]), float(c0[1]), float(c0[2]), target_l)
-    r, g, b = reduce_chroma(r, g, b, factor=0.15)
+    r, g, b = reduce_chroma(r, g, b, factor=0.40)
     return clamp_rgb(r, g, b)
 
 
