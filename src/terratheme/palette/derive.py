@@ -61,7 +61,7 @@ def _derive_background(
     tones = DARK_BG_TONES if mode == "dark" else LIGHT_BG_TONES
     target = tones[layer_index]
     r, g, b = adjust_tone(float(source[0]), float(source[1]), float(source[2]), target)
-    r, g, b = reduce_chroma(r, g, b, factor=0.55)
+    r, g, b = reduce_chroma(r, g, b, factor=0.75)
     return clamp_rgb(r, g, b)
 
 
