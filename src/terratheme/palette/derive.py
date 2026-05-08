@@ -97,28 +97,43 @@ def _derive_on_color(
 ) -> tuple[int, int, int]:
     """Adjust an accent source colour for readability on *base_color*.
 
-    Uses WCAG relative luminance to determine whether the on-color should
-    be light or dark, then shifts the accent's tone for contrast and
-    slightly boosts chroma for visual interest.
+    Picks the best tone direction (light or dark) for contrast, then
+    tries both full-chroma and neutral versions.  If the accent source's
+    hue can't produce sufficient WCAG luminance (e.g. blue/red at high
+    lightness), chroma is automatically reduced toward white/black to
+    guarantee readability.
     """
     base_lum = relative_luminance(*base_color)
     src_h, src_s, _src_l = rgb_to_hsl(
         float(accent_source[0]), float(accent_source[1]), float(accent_source[2]),
     )
-
-    # The equal-contrast point (where light and dark text give the same
-    # WCAG ratio against the base) is at base luminance ~0.20, but since
-    # HSL→WCAG luminance mapping is hue-dependent, a small buffer at 0.21
-    # prevents flip-flopping for borderline mid-tone bases.
-    if base_lum < 0.21:
-        target_tone = 0.85  # light on dark
-    else:
-        target_tone = 0.15  # dark on light
-
-    # Boost chroma slightly (cap at 1.0)
     chroma = min(src_s * 1.2, 1.0)
-    r, g, b = hsl_to_rgb(src_h, chroma, target_tone)
-    return clamp_rgb(r, g, b)
+
+    # Try both tone directions, with full chroma and neutral fallback
+    if base_lum < 0.21:
+        tones = (0.85, 0.15)   # primary=light, fallback=dark
+    else:
+        tones = (0.15, 0.85)   # primary=dark, fallback=light
+
+    best = None
+    best_score = -1.0
+
+    for tone in tones:
+        for ch in (chroma, 0.0):
+            r, g, b = hsl_to_rgb(src_h, ch, tone)
+            result = clamp_rgb(r, g, b)
+            on_lum = relative_luminance(*result)
+            lighter = max(base_lum, on_lum)
+            darker = min(base_lum, on_lum)
+            ratio = (lighter + 0.05) / (darker + 0.05)
+
+            # Score: contrast first, chroma bonus for colourfulness
+            score = ratio + ch * 0.1
+            if score > best_score:
+                best_score = score
+                best = result
+
+    return best
 
 
 def _derive_outline(
