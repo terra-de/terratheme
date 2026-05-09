@@ -6,12 +6,14 @@ from pathlib import Path
 
 from .base import BaseTarget
 from .hyprland import HyprlandTarget
+from .zellij import ZellijTarget
 
 # ---------------------------------------------------------------------------
 # Registry — add new targets here
 # ---------------------------------------------------------------------------
 _TARGETS: dict[str, type[BaseTarget]] = {
     "hyprland": HyprlandTarget,
+    "zellij": ZellijTarget,
 }
 
 
