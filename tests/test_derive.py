@@ -24,14 +24,21 @@ def test_extract_returns_five_colors() -> None:
         assert 0 <= b <= 255
 
 
-def test_extract_colors_ordered_by_luminance() -> None:
-    from terratheme.palette.color_utils import rgb_to_hsl
+def test_extract_colors_are_distinct() -> None:
+    from terratheme.palette.color_utils import rgb_euclidean
 
     colors = extract_colors(str(TEST_IMAGE))
-    for i in range(len(colors) - 1):
-        _, _, l1 = rgb_to_hsl(float(colors[i][0]), float(colors[i][1]), float(colors[i][2]))
-        _, _, l2 = rgb_to_hsl(float(colors[i + 1][0]), float(colors[i + 1][1]), float(colors[i + 1][2]))
-        assert l1 <= l2 + 0.01, f"colour {i} not darker than {i + 1}: {l1} vs {l2}"
+    assert len(colors) == 5
+    # Colors should be reasonably distinct from each other
+    for i in range(len(colors)):
+        for j in range(i + 1, len(colors)):
+            dist = rgb_euclidean(colors[i], colors[j])
+            assert dist > 10, (
+                f"colors {i} and {j} too close: "
+                f"#{colors[i][0]:02x}{colors[i][1]:02x}{colors[i][2]:02x} vs "
+                f"#{colors[j][0]:02x}{colors[j][1]:02x}{colors[j][2]:02x} "
+                f"(dist={dist:.1f})"
+            )
 
 
 class TestDerive:

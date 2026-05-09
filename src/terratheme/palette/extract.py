@@ -48,40 +48,11 @@ def _score_cluster(
     return score
 
 
-def _ensure_dark_light(
-    selected: list[tuple[float, float, float]],
-    candidates: list[tuple[float, float, float, float]],
-) -> list[tuple[float, float, float]]:
-    """If selected contains no dark *or* no light colour, force-add one."""
-    has_dark = any(rgb_to_hsl(*c)[2] < 0.35 for c in selected)
-    has_light = any(rgb_to_hsl(*c)[2] > 0.65 for c in selected)
-
-    remaining = sorted(
-        candidates,
-        key=lambda t: (
-            0 if (not has_dark and t[3] < 0.35)
-            or (not has_light and t[3] > 0.65)
-            else 1,
-            -t[2],
-        ),
-    )
-
-    for r, g, b, _lum in remaining:
-        if not has_dark and rgb_to_hsl(r, g, b)[2] < 0.35:
-            selected.append((r, g, b))
-            has_dark = True
-        elif not has_light and rgb_to_hsl(r, g, b)[2] > 0.65:
-            selected.append((r, g, b))
-            has_light = True
-        if has_dark and has_light:
-            break
-    return selected
-
-
 def extract_colors(path: str, n_colors: int = 5) -> list[tuple[int, int, int]]:
     """Extract *n_colors* dominant colours from an image.
 
-    Returns a list of ``(R, G, B)`` tuples sorted by luminance (dark → light).
+    Returns a list of ``(R, G, B)`` tuples sorted by dominance
+    (most prevalent/vibrant → least prevalent).
     """
     pixels = load_image(path)
     total = pixels.shape[0]
@@ -90,44 +61,39 @@ def extract_colors(path: str, n_colors: int = 5) -> list[tuple[int, int, int]]:
     labels = kmeans.fit_predict(pixels)
     centroids = kmeans.cluster_centers_
 
-    scored: list[tuple[float, float, float, float, float]] = []
+    scored: list[tuple[float, float, float, float]] = []
     for i, center in enumerate(centroids):
         pop = int((labels == i).sum())
         if pop == 0:
             continue
         sc = _score_cluster(center, pop, total)
         r, g, b = float(center[0]), float(center[1]), float(center[2])
-        _h, s, l = rgb_to_hsl(r, g, b)
-        scored.append((r, g, b, sc, l))
+        scored.append((r, g, b, sc))
 
     scored.sort(key=lambda t: -t[3])
 
-    selected: list[tuple[float, float, float]] = []
+    selected: list[tuple[float, float, float, float]] = []
     candidates: list[tuple[float, float, float, float]] = []
     MIN_DIST = 30.0
 
-    for r, g, b, sc, l in scored:
+    for r, g, b, sc in scored:
         if len(selected) >= n_colors:
             break
         if any(rgb_euclidean((r, g, b), s) < MIN_DIST for s in selected):
-            candidates.append((r, g, b, l))
+            candidates.append((r, g, b, sc))
             continue
-        selected.append((r, g, b))
+        selected.append((r, g, b, sc))
 
-    for r, g, b, _ in candidates:
+    for r, g, b, sc in candidates:
         if len(selected) >= n_colors:
             break
-        selected.append((r, g, b))
+        selected.append((r, g, b, sc))
 
-    selected = _ensure_dark_light(
-        selected,
-        [(r, g, b, l) for r, g, b, l in candidates],
-    )
-
-    selected.sort(key=lambda c: rgb_to_hsl(c[0], c[1], c[2])[2])
+    # Sort by dominance score (descending)
+    selected.sort(key=lambda t: -t[3])
 
     result: list[tuple[int, int, int]] = []
-    for r, g, b in selected[:n_colors]:
+    for r, g, b, _sc in selected[:n_colors]:
         result.append((
             max(0, min(255, round(r))),
             max(0, min(255, round(g))),
