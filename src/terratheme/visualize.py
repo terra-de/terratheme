@@ -83,9 +83,9 @@ def visualize(palette: dict[str, Any], image_path: str) -> None:
     lines.append("")
 
     # ── Background samples ──────────────────────────────────────────
-    lines.append(f"{BOLD}  Backgrounds{RESET}")
+    lines.append(f"{BOLD}  Backgrounds (deepest → foremost){RESET}")
     lines.append("")
-    for name in ("top", "front", "base", "back"):
+    for name in ("bottom", "low", "base", "high", "top"):
         b = tokens[name]
         lines.append(_section_line(name, b, tokens["standard"], content_width))
     lines.append("")

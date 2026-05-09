@@ -19,21 +19,23 @@ from terratheme.palette.color_utils import (
 )
 
 # ── Background target tones ─────────────────────────────────────────────
-# layer 0=back, 1=base, 2=front, 3=top
-DARK_BG_TONES = [0.05, 0.15, 0.25, 0.35]
-LIGHT_BG_TONES = [0.65, 0.75, 0.85, 0.95]
+# 5 layers: bottom (deepest/darkest) → low → base → high → top (foremost)
+DARK_BG_TONES  = [0.04, 0.10, 0.18, 0.28, 0.40]
+LIGHT_BG_TONES = [0.60, 0.72, 0.82, 0.90, 0.96]
 
 # Source colour → layer mapping
-# Shifted so each background derives from a different source than the
-# accent that sits on it (e.g. base←c3 so c0 accents pop against base).
+# Each background derives from the corresponding source colour, but the
+# accent that sits on it is shifted by +2 (wrapping) so they always
+# differ:  e.g. bottom derives from c0, c2 accents sit on bottom.
 BG_SOURCE_LAYERS = [
-    (2, 0),   # back  ← c2, layer 0
-    (3, 1),   # base  ← c3, layer 1
-    (0, 2),   # front ← c0, layer 2
-    (1, 3),   # top   ← c1, layer 3
+    (0, 0),   # bottom ← c0, layer 0
+    (1, 1),   # low    ← c1, layer 1
+    (2, 2),   # base   ← c2, layer 2
+    (3, 3),   # high   ← c3, layer 3
+    (4, 4),   # top    ← c4, layer 4
 ]
 
-BG_NAMES = ["back", "base", "front", "top"]
+BG_NAMES = ["bottom", "low", "base", "high", "top"]
 
 
 # ── Derivation helpers ──────────────────────────────────────────────────
@@ -58,7 +60,7 @@ def _derive_background(
 ) -> tuple[int, int, int]:
     """Produce a background tone from a source colour.
 
-    *layer_index*: 0=back → 3=top (darkest → lightest).
+    *layer_index*: 0=bottom → 4=top (darkest → lightest).
     """
     tones = DARK_BG_TONES if mode == "dark" else LIGHT_BG_TONES
     target = tones[layer_index]

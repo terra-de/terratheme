@@ -56,7 +56,7 @@ class TestDerive:
     def test_all_tokens_present(self) -> None:
         palette = derive_palette(self.sources, mode="dark")
         expected_tokens = {
-            "back", "base", "front", "top",
+            "bottom", "low", "base", "high", "top",
             "standard", "muted",
             "c0", "c1", "c2", "c3", "c4",
             "on_c0", "on_c1", "on_c2", "on_c3", "on_c4",
@@ -91,8 +91,8 @@ class TestDerive:
         light = palette["light"]
 
         # Should differ between modes
-        mode_sensitive = {"back", "base", "front", "top", "standard", "muted",
-                          "outline"}
+        mode_sensitive = {"bottom", "low", "base", "high", "top",
+                          "standard", "muted", "outline"}
         for name in mode_sensitive:
             assert dark[name] != light[name], (
                 f"token {name} is identical across modes: {dark[name]}"
@@ -113,7 +113,7 @@ class TestDerive:
         # Background layers are strictly ordered by HSL lightness (the
         # derivation guarantee).  WCAG luminance can invert for close
         # tones with different hues, so we check the actual contract.
-        names = ["back", "base", "front", "top"]
+        names = ["bottom", "low", "base", "high", "top"]
         for mode_name in ("dark", "light"):
             values = [rgb_to_hsl(*hex_to_rgb(palette[mode_name][n]))[2] for n in names]
             for i in range(len(values) - 1):
@@ -147,7 +147,7 @@ class TestDerive:
     def test_outline_differs_from_backgrounds(self) -> None:
         palette = derive_palette(self.sources, mode="dark")
         outline = hex_to_rgb(palette["dark"]["outline"])
-        for bg_name in ("back", "base", "front", "top"):
+        for bg_name in ("bottom", "low", "base", "high", "top"):
             bg = hex_to_rgb(palette["dark"][bg_name])
             # Should be visibly different from each background
             diff = sum(abs(outline[i] - bg[i]) for i in range(3))
