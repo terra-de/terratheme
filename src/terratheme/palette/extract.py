@@ -51,8 +51,8 @@ def _score_cluster(
 def extract_colors(path: str, n_colors: int = 5) -> list[tuple[int, int, int]]:
     """Extract *n_colors* dominant colours from an image.
 
-    Returns a list of ``(R, G, B)`` tuples sorted by dominance
-    (most prevalent/vibrant → least prevalent).
+    Returns a list of ``(R, G, B)`` tuples sorted by HSL lightness
+    (dark → light).
     """
     pixels = load_image(path)
     total = pixels.shape[0]
@@ -89,8 +89,8 @@ def extract_colors(path: str, n_colors: int = 5) -> list[tuple[int, int, int]]:
             break
         selected.append((r, g, b, sc))
 
-    # Sort by dominance score (descending)
-    selected.sort(key=lambda t: -t[3])
+    # Sort by HSL lightness (dark → light)
+    selected.sort(key=lambda t: rgb_to_hsl(t[0], t[1], t[2])[2])
 
     result: list[tuple[int, int, int]] = []
     for r, g, b, _sc in selected[:n_colors]:

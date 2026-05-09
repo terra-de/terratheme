@@ -2,6 +2,15 @@
 
 Takes extracted source colours (c0–c4) and produces the complete
 20-token palette for a given mode (light or dark), plus a contrast log.
+
+Semantic model
+--------------
+- c0 is always the **background source** (darkest in dark mode, lightest in light).
+- c1–c4 are **accents**; c4 gives the highest contrast against the mode's
+  background (lightest in dark mode, darkest in light mode).
+- In dark mode the sources are used as-is (dark → light).
+- In light mode the source list is reversed so that c0 is the lightest
+  (colours that pop on light backgrounds are dark = higher indices).
 """
 
 from __future__ import annotations
@@ -22,18 +31,6 @@ from terratheme.palette.color_utils import (
 # 5 layers: bottom (deepest/darkest) → low → base → high → top (foremost)
 DARK_BG_TONES  = [0.04, 0.10, 0.18, 0.28, 0.40]
 LIGHT_BG_TONES = [0.60, 0.72, 0.82, 0.90, 0.96]
-
-# Source colour → layer mapping
-# Each background derives from the corresponding source colour, but the
-# accent that sits on it is shifted by +2 (wrapping) so they always
-# differ:  e.g. bottom derives from c0, c2 accents sit on bottom.
-BG_SOURCE_LAYERS = [
-    (0, 0),   # bottom ← c0, layer 0
-    (1, 1),   # low    ← c1, layer 1
-    (2, 2),   # base   ← c2, layer 2
-    (3, 3),   # high   ← c3, layer 3
-    (4, 4),   # top    ← c4, layer 4
-]
 
 BG_NAMES = ["bottom", "low", "base", "high", "top"]
 
@@ -61,6 +58,7 @@ def _derive_background(
     """Produce a background tone from a source colour.
 
     *layer_index*: 0=bottom → 4=top (darkest → lightest).
+    All backgrounds derive from the same source (c0) for a cohesive look.
     """
     tones = DARK_BG_TONES if mode == "dark" else LIGHT_BG_TONES
     target = tones[layer_index]
@@ -72,10 +70,8 @@ def _derive_background(
 def _derive_standard_text(mode: str, tint_from: tuple[int, int, int]) -> tuple[int, int, int]:
     """Near-white (dark mode) or near-black (light mode) with slight tint."""
     target_l = 0.95 if mode == "dark" else 0.05
-    # Tint very slightly by blending in a tiny amount of the tint source
     base = (255, 255, 255) if mode == "dark" else (0, 0, 0)
     r, g, b = adjust_tone(float(base[0]), float(base[1]), float(base[2]), target_l)
-    # Blend 5% toward the tint source for a subtle palette tie-in
     r, g, b = blend((r, g, b), (float(tint_from[0]), float(tint_from[1]), float(tint_from[2])), 0.05)
     return clamp_rgb(r, g, b)
 
@@ -84,10 +80,7 @@ def _derive_muted_text(
     standard: tuple[int, int, int],
     mode: str,
 ) -> tuple[int, int, int]:
-    """Lower-contrast version of standard text.
-
-    Shift tone 40% toward the mode's average background luminance.
-    """
+    """Lower-contrast version of standard text."""
     bg_l = 0.10 if mode == "dark" else 0.90
     h, s, _l = rgb_to_hsl(float(standard[0]), float(standard[1]), float(standard[2]))
     target = _l + (bg_l - _l) * 0.4
@@ -99,13 +92,12 @@ def _derive_on_color(
     base_color: tuple[int, int, int],
     accent_source: tuple[int, int, int],
 ) -> tuple[int, int, int]:
-    """Adjust an accent source colour for readability on *base_color*.
+    """Readable on-colour with saturation preserved as much as possible.
 
-    Picks the best tone direction (light or dark) for contrast, then
-    tries both full-chroma and neutral versions.  If the accent source's
-    hue can't produce sufficient WCAG luminance (e.g. blue/red at high
-    lightness), chroma is automatically reduced toward white/black to
-    guarantee readability.
+    Picks the best tone direction (light or dark) for contrast, then tries
+    progressively reduced chroma levels.  The most colourful candidate that
+    still passes **3.0:1** is chosen, so on-colours keep a tint of their
+    accent source instead of always collapsing to grey.
     """
     base_lum = relative_luminance(*base_color)
     src_h, src_s, _src_l = rgb_to_hsl(
@@ -113,17 +105,17 @@ def _derive_on_color(
     )
     chroma = min(src_s * 1.2, 1.0)
 
-    # Try both tone directions, with full chroma and neutral fallback
     if base_lum < 0.21:
-        tones = (0.85, 0.15)   # primary=light, fallback=dark
+        tones = (0.85, 0.15)
     else:
-        tones = (0.15, 0.85)   # primary=dark, fallback=light
+        tones = (0.15, 0.85)
 
     best = None
     best_score = -1.0
 
+    # Try multiple chroma levels — colourful first, grey last
     for tone in tones:
-        for ch in (chroma, 0.0):
+        for ch in (chroma, chroma * 0.7, chroma * 0.4, 0.0):
             r, g, b = hsl_to_rgb(src_h, ch, tone)
             result = clamp_rgb(r, g, b)
             on_lum = relative_luminance(*result)
@@ -144,7 +136,7 @@ def _derive_outline(
     c0: tuple[int, int, int],
     mode: str,
 ) -> tuple[int, int, int]:
-    """Derive outline from c0 by shifting in the opposite direction of *mode*."""
+    """Derive outline from the background source colour."""
     target_l = 0.40 if mode == "dark" else 0.60
     r, g, b = adjust_tone(float(c0[0]), float(c0[1]), float(c0[2]), target_l)
     r, g, b = reduce_chroma(r, g, b, factor=0.40)
@@ -152,7 +144,7 @@ def _derive_outline(
 
 
 def _derive_error(c0: tuple[int, int, int]) -> tuple[int, int, int]:
-    """Start from red, blend slightly toward c0."""
+    """Start from red, blend slightly toward the background source."""
     red = (255.0, 0.0, 0.0)
     r, g, b = blend(red, (float(c0[0]), float(c0[1]), float(c0[2])), 0.2)
     return clamp_rgb(r, g, b)
@@ -163,14 +155,15 @@ def _derive_on_error(
     c1: tuple[int, int, int],
     mode: str,
 ) -> tuple[int, int, int]:
-    """Readable colour on error, blended slightly toward c1.
-
-    Error is always a dark red regardless of mode, so on_error always
-    targets a light tone for readability.
-    """
+    """Readable colour on error, blended slightly toward c1."""
     r, g, b = adjust_tone(255.0, 255.0, 255.0, 0.90)
-    r, g, b = blend((r, g, b), (float(c1[0]), float(c1[1]), float(c1[2])), 0.15)
-    return clamp_rgb(r, g, b)
+    for blend_factor in (0.15, 0.10, 0.05, 0.0):
+        candidate = blend((r, g, b), (float(c1[0]), float(c1[1]), float(c1[2])), blend_factor)
+        candidate_rgb = clamp_rgb(*candidate)
+        cr = contrast_ratio(candidate_rgb, error)
+        if cr >= 3.0:
+            return candidate_rgb
+    return clamp_rgb(255, 255, 255)
 
 
 # ── Public API ──────────────────────────────────────────────────────────
@@ -186,65 +179,68 @@ def derive_palette(
     """Produce the full 20-token palette from 5 source colours.
 
     Args:
-        sources: 5 ``(R, G, B)`` tuples, c0–c4 in order of prevalence.
+        sources: 5 ``(R, G, B)`` tuples, sorted dark → light.
         mode: ``"dark"``, ``"light"``, or ``None`` for auto-detect.
 
     Returns:
         A dict with ``"version"``, ``"mode"``, ``"light"``, ``"dark"``,
-        and ``"contrast_log"`` keys.  The ``"light"`` and ``"dark"`` values
-        are dicts mapping token names to hex colour strings.
+        and ``"contrast_log"`` keys.
 
-        The logical structure is::
-
-            {
-                "version": 2,
-                "mode": "dark",
-                "light": { … 20 tokens … },
-                "dark":  { … 20 tokens … },
-                "contrast_log": { … },
-            }
+    Token semantics
+    ---------------
+    - **c0** – background source (darkest in dark mode, lightest in light).
+    - **c1–c4** – accents where higher index = more visual pop against the
+      mode's background.
+    - **on_c0–on_c4** – readable foreground colours for each accent.
+    - **bottom/low/base/high/top** – cohesive single-hue background layers.
     """
     if mode is None:
         mode = _detect_mode(sources)
 
-    c = sources  # c0–c4
-    result: dict[str, dict[str, str]] = {}
+    results: dict[str, dict[str, str]] = {}
 
     for m in ("dark", "light"):
         tokens: dict[str, str] = {}
 
-        # ── Backgrounds ─────────────────────────────────────────────
-        for src_idx, layer_idx in BG_SOURCE_LAYERS:
-            name = BG_NAMES[layer_idx]
-            rgb = _derive_background(c[src_idx], m, layer_idx)
+        # Reverse sources for light mode so c0 is always background source
+        # (darkest in dark mode, lightest in light mode).
+        if m == "dark":
+            working = list(sources)      # c0=darkest, c4=lightest
+        else:
+            working = list(reversed(sources))  # c0=lightest, c4=darkest
+
+        # ── Backgrounds (all from working[0]) ────────────────────────
+        bg_source = working[0]
+        for i, name in enumerate(BG_NAMES):
+            rgb = _derive_background(bg_source, m, i)
             tokens[name] = rgb_hex(*rgb)
 
         # ── Text ────────────────────────────────────────────────────
-        std = _derive_standard_text(m, c[0])
+        std = _derive_standard_text(m, working[0])
         tokens["standard"] = rgb_hex(*std)
         tokens["muted"] = rgb_hex(*_derive_muted_text(std, m))
 
         # ── Semantic colours (c0–c4, on_c0–on_c4) ──────────────────
         on_chain = [1, 2, 3, 4, 0]  # on_cN borrows from c(N+1), c4 wraps to c0
         for i in range(5):
-            tokens[f"c{i}"] = rgb_hex(*c[i])
-            on_rgb = _derive_on_color(c[i], c[on_chain[i]])
+            tokens[f"c{i}"] = rgb_hex(*working[i])
+            on_rgb = _derive_on_color(working[i], working[on_chain[i]])
             tokens[f"on_c{i}"] = rgb_hex(*on_rgb)
 
         # ── Error ───────────────────────────────────────────────────
-        err = _derive_error(c[0])
+        err = _derive_error(working[0])
         tokens["error"] = rgb_hex(*err)
-        tokens["on_error"] = rgb_hex(*_derive_on_error(err, c[1], m))
+        tokens["on_error"] = rgb_hex(*_derive_on_error(err, working[1], m))
 
         # ── Outline ─────────────────────────────────────────────────
-        tokens["outline"] = rgb_hex(*_derive_outline(c[0], m))
+        tokens["outline"] = rgb_hex(*_derive_outline(working[0], m))
 
-        result[m] = tokens
+        results[m] = tokens
 
     # ── Contrast log ─────────────────────────────────────────────────
     contrast_log: dict[str, str] = {}
     for m in ("dark", "light"):
-        t = result[m]
+        t = results[m]
         pairs: list[tuple[str, str]] = [
             ("on_c0", "c0"),
             ("on_c1", "c1"),
@@ -265,7 +261,7 @@ def derive_palette(
     return {
         "version": 2,
         "mode": mode,
-        "light": result["light"],
-        "dark": result["dark"],
+        "light": results["light"],
+        "dark": results["dark"],
         "contrast_log": contrast_log,
     }

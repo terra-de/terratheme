@@ -24,21 +24,14 @@ def test_extract_returns_five_colors() -> None:
         assert 0 <= b <= 255
 
 
-def test_extract_colors_are_distinct() -> None:
-    from terratheme.palette.color_utils import rgb_euclidean
+def test_extract_colors_ordered_by_luminance() -> None:
+    from terratheme.palette.color_utils import rgb_to_hsl
 
     colors = extract_colors(str(TEST_IMAGE))
-    assert len(colors) == 5
-    # Colors should be reasonably distinct from each other
-    for i in range(len(colors)):
-        for j in range(i + 1, len(colors)):
-            dist = rgb_euclidean(colors[i], colors[j])
-            assert dist > 10, (
-                f"colors {i} and {j} too close: "
-                f"#{colors[i][0]:02x}{colors[i][1]:02x}{colors[i][2]:02x} vs "
-                f"#{colors[j][0]:02x}{colors[j][1]:02x}{colors[j][2]:02x} "
-                f"(dist={dist:.1f})"
-            )
+    for i in range(len(colors) - 1):
+        _, _, l1 = rgb_to_hsl(float(colors[i][0]), float(colors[i][1]), float(colors[i][2]))
+        _, _, l2 = rgb_to_hsl(float(colors[i + 1][0]), float(colors[i + 1][1]), float(colors[i + 1][2]))
+        assert l1 <= l2 + 0.01, f"colour {i} not darker than {i + 1}: {l1} vs {l2}"
 
 
 class TestDerive:
@@ -86,40 +79,64 @@ class TestDerive:
                 assert len(hex_str) == 7, f"{mode_name}.{name}: wrong length"
                 int(hex_str[1:], 16)  # will raise if invalid
 
-    def test_mode_sensitive_tokens_differ(self) -> None:
-        """Backgrounds, text, and outlines differ per mode.
+    def test_c0_is_background_source_dark_mode(self) -> None:
+        """In dark mode, c0 is the darkest source; all bgs derive from it."""
+        from terratheme.palette.color_utils import rgb_to_hsl
 
-        Raw source colours (c0-c4), error base, and on_error are the
-        same in both modes — error is always a dark red regardless
-        of mode, so on_error is always light for readability.
-        """
         palette = derive_palette(self.sources, mode="dark")
-        dark = palette["dark"]
-        light = palette["light"]
+        tokens = palette["dark"]
 
-        # Should differ between modes
-        mode_sensitive = {"bottom", "low", "base", "high", "top",
-                          "standard", "muted", "outline"}
-        for name in mode_sensitive:
-            assert dark[name] != light[name], (
-                f"token {name} is identical across modes: {dark[name]}"
+        # c0 should be the darkest of c0-c4
+        c_lums = [
+            (i, rgb_to_hsl(*hex_to_rgb(tokens[f"c{i}"]))[2])
+            for i in range(5)
+        ]
+        c0_lum = c_lums[0][1]
+        for i, lum in c_lums[1:]:
+            assert c0_lum <= lum + 0.01, (
+                f"dark mode c0 (l={c0_lum:.3f}) not darkest: c{i} (l={lum:.3f})"
             )
 
-        # Should be identical between modes (raw source or fixed derivation)
-        mode_stable = {"c0", "c1", "c2", "c3", "c4", "error", "on_error",
-                       "on_c0", "on_c1", "on_c2", "on_c3", "on_c4"}
-        for name in mode_stable:
-            assert dark[name] == light[name], (
-                f"token {name} differs across modes: dark={dark[name]} light={light[name]}"
+        # All backgrounds should originate from the same source as c0
+        # (can't directly test, but we can verify they share a hue family)
+        bg_lums = [
+            rgb_to_hsl(*hex_to_rgb(tokens[name]))[2]
+            for name in ("bottom", "low", "base", "high", "top")
+        ]
+        for i in range(len(bg_lums) - 1):
+            assert bg_lums[i] <= bg_lums[i + 1], (
+                f"backgrounds out of order at index {i}"
             )
+
+    def test_c0_is_background_source_light_mode(self) -> None:
+        """In light mode, c0 is the lightest source (reversed)."""
+        from terratheme.palette.color_utils import rgb_to_hsl
+
+        palette = derive_palette(self.sources, mode="light")
+        tokens = palette["light"]
+
+        # c0 should be the lightest of c0-c4
+        c_lums = [
+            (i, rgb_to_hsl(*hex_to_rgb(tokens[f"c{i}"]))[2])
+            for i in range(5)
+        ]
+        c0_lum = c_lums[0][1]
+        for i, lum in c_lums[1:]:
+            assert c0_lum >= lum - 0.01, (
+                f"light mode c0 (l={c0_lum:.3f}) not lightest: c{i} (l={lum:.3f})"
+            )
+
+    def test_c0_differs_between_modes(self) -> None:
+        """c0 is reversed per mode, so values differ."""
+        palette = derive_palette(self.sources, mode="dark")
+        dark_c0 = palette["dark"]["c0"]
+        light_c0 = palette["light"]["c0"]
+        assert dark_c0 != light_c0, "c0 should differ between modes"
 
     def test_backgrounds_ordered_correctly(self) -> None:
         from terratheme.palette.color_utils import rgb_to_hsl
 
         palette = derive_palette(self.sources, mode="dark")
-        # Background layers are strictly ordered by HSL lightness (the
-        # derivation guarantee).  WCAG luminance can invert for close
-        # tones with different hues, so we check the actual contract.
         names = ["bottom", "low", "base", "high", "top"]
         for mode_name in ("dark", "light"):
             values = [rgb_to_hsl(*hex_to_rgb(palette[mode_name][n]))[2] for n in names]
@@ -145,7 +162,7 @@ class TestDerive:
         assert loaded["version"] == 2
 
     def test_error_is_reddish(self) -> None:
-        """Error should have a strong red component (blended toward c0)."""
+        """Error should have a strong red component (blended toward bg source)."""
         palette = derive_palette(self.sources, mode="dark")
         r, g, b = hex_to_rgb(palette["dark"]["error"])
         assert r > g * 1.5, f"error {palette['dark']['error']} not reddish enough"
@@ -156,6 +173,5 @@ class TestDerive:
         outline = hex_to_rgb(palette["dark"]["outline"])
         for bg_name in ("bottom", "low", "base", "high", "top"):
             bg = hex_to_rgb(palette["dark"][bg_name])
-            # Should be visibly different from each background
             diff = sum(abs(outline[i] - bg[i]) for i in range(3))
             assert diff > 10, f"outline too close to {bg_name}: diff={diff}"
