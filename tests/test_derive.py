@@ -107,25 +107,20 @@ class TestDerive:
             )
 
     def test_backgrounds_ordered_correctly(self) -> None:
-        from terratheme.palette.color_utils import relative_luminance
+        from terratheme.palette.color_utils import rgb_to_hsl
 
         palette = derive_palette(self.sources, mode="dark")
-        # In dark mode: back < base < front < top (all low luminance)
+        # Background layers are strictly ordered by HSL lightness (the
+        # derivation guarantee).  WCAG luminance can invert for close
+        # tones with different hues, so we check the actual contract.
         names = ["back", "base", "front", "top"]
-        values = [relative_luminance(*hex_to_rgb(palette["dark"][n])) for n in names]
-        eps = 0.005  # HSL lightness is strictly ordered; WCAG luminance
-                       # can invert for very close tones with different hues
-        for i in range(len(values) - 1):
-            assert values[i] <= values[i + 1] + eps, (
-                f"dark bg {names[i]} ({values[i]:.3f}) > {names[i + 1]} ({values[i + 1]:.3f})"
-            )
-
-        palette = derive_palette(self.sources, mode="light")
-        values = [relative_luminance(*hex_to_rgb(palette["light"][n])) for n in names]
-        for i in range(len(values) - 1):
-            assert values[i] <= values[i + 1] + eps, (
-                f"light bg {names[i]} ({values[i]:.3f}) > {names[i + 1]} ({values[i + 1]:.3f})"
-            )
+        for mode_name in ("dark", "light"):
+            values = [rgb_to_hsl(*hex_to_rgb(palette[mode_name][n]))[2] for n in names]
+            for i in range(len(values) - 1):
+                assert values[i] <= values[i + 1], (
+                    f"{mode_name} bg {names[i]} (l={values[i]:.3f}) > "
+                    f"{names[i + 1]} (l={values[i + 1]:.3f})"
+                )
 
     def test_contrast_log_populated(self) -> None:
         palette = derive_palette(self.sources, mode="dark")

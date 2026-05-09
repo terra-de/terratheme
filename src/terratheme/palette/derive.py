@@ -20,15 +20,17 @@ from terratheme.palette.color_utils import (
 
 # ── Background target tones ─────────────────────────────────────────────
 # layer 0=back, 1=base, 2=front, 3=top
-DARK_BG_TONES = [0.05, 0.08, 0.11, 0.15]
-LIGHT_BG_TONES = [0.85, 0.90, 0.94, 0.97]
+DARK_BG_TONES = [0.05, 0.15, 0.25, 0.35]
+LIGHT_BG_TONES = [0.65, 0.75, 0.85, 0.95]
 
 # Source colour → layer mapping
+# Shifted so each background derives from a different source than the
+# accent that sits on it (e.g. base←c3 so c0 accents pop against base).
 BG_SOURCE_LAYERS = [
-    (3, 0),   # back  ← c3, layer 0
-    (0, 1),   # base  ← c0, layer 1
-    (1, 2),   # front ← c1, layer 2
-    (2, 3),   # top   ← c2, layer 3
+    (2, 0),   # back  ← c2, layer 0
+    (3, 1),   # base  ← c3, layer 1
+    (0, 2),   # front ← c0, layer 2
+    (1, 3),   # top   ← c1, layer 3
 ]
 
 BG_NAMES = ["back", "base", "front", "top"]
