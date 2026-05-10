@@ -47,6 +47,7 @@ class GtkTarget(BaseTarget):
         high = _hex(colors["high"])
         top = _hex(colors["top"])
         standard = _hex(colors["standard"])
+        muted = _hex(colors["muted"])
         error = _hex(colors["error"])
         on_error = _hex(colors["on_error"])
 
@@ -98,6 +99,22 @@ class GtkTarget(BaseTarget):
 @define-color destructive_bg_color #{error};
 @define-color destructive_fg_color #{on_error};
 @define-color destructive_color #{error};
+
+/* ---------- Standard GTK3 variables ---------- */
+@define-color base_color #{base};
+@define-color text_color #{standard};
+@define-color insensitive_fg_color #{muted};
+@define-color insensitive_bg_color #{bottom};
+@define-color selected_fg_color #{on_c4};
+@define-color selected_bg_color #{c4};
+@define-color scrollbar_bg_color #{bottom};
+@define-color scrollbar_slider_color #{c4};
+@define-color tooltip_fg_color #{on_c4};
+@define-color tooltip_bg_color #{top};
+@define-color prelight_color #{c4};
+@define-color menu_fg_color #{standard};
+@define-color menu_bg_color #{base};
+@define-color link_color #{c4};
 
 /* ---------- CSS custom properties (GTK 4.16+) ---------- */
 :root {{
