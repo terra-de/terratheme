@@ -2,9 +2,17 @@
 
 Both light and dark sections are always written so that foot's
 ``initial-color-theme`` can dynamically switch between them.
+
+After writing, colours are pushed to all active PTY sessions via OSC escape
+sequences — running terminals update instantly without a restart.
 """
 
 from __future__ import annotations
+
+import sys
+from pathlib import Path
+
+from terratheme.terminal_push import push_from_config
 
 from .base import BaseTarget
 
@@ -74,5 +82,12 @@ class FootTarget(BaseTarget):
 
         return "\n".join(lines)
 
-    def post_hook(self) -> list[str]:
-        return ["touch ~/.config/foot/colors.ini"]
+    def write(self, palette: dict, mode: str) -> Path:
+        """Render, write to disk, and push colours to all active terminals."""
+        path = super().write(palette, mode)
+        try:
+            push_from_config(path)
+            print(f"  [foot] pushed colours to active terminals", file=sys.stderr)
+        except (FileNotFoundError, ValueError, OSError) as exc:
+            print(f"  [foot] terminal push skipped: {exc}", file=sys.stderr)
+        return path
