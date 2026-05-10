@@ -8,20 +8,20 @@ from .base import BaseTarget
 # Each entry: (base_token, bg_token, em0, em1, em2, em3)
 # bg_token=0 means literal "0" (transparent).
 _GROUPS: dict[str, tuple[str | int, ...]] = {
-    "text_unselected":        ("muted",    "base", "c4", "c2", "c1", "c0"),
-    "text_selected":          ("standard", "high", "c4", "c2", "c1", "c0"),
-    "ribbon_unselected":      ("standard", "low",  "c4", "base", "c4", "c4"),
-    "ribbon_selected":        ("standard", "c4",   "c2", "c1",   "c0", "c0"),
-    "table_title":            ("c4",       "base", "c4", "c2", "c1", "c0"),
-    "table_cell_unselected":  ("standard", "base", "c4", "c2", "c1", "c0"),
-    "table_cell_selected":    ("standard", "high",  "standard", "standard", "standard", "standard"),
-    "list_unselected":        ("standard", "base", "c4", "c2", "c1", "c0"),
+    "text_unselected":        ("muted",    "base", "c4", "c4", "c3", "c3"),
+    "text_selected":          ("standard", "high", "c4", "c4", "c3", "c3"),
+    "ribbon_unselected":      ("standard", "base", "standard", "base", "standard", "standard"),
+    "ribbon_selected":        ("on_c4",    "c4",   "on_c4",   "on_c4",   "on_c4", "on_c4"),
+    "table_title":            ("c4",       "base", "c4", "c4", "c3", "c3"),
+    "table_cell_unselected":  ("standard", "base", "c4", "c4", "c3", "c3"),
+    "table_cell_selected":    ("standard", "high", "standard", "standard", "standard", "standard"),
+    "list_unselected":        ("standard", "base", "c4", "c4", "c3", "c3"),
     "list_selected":          ("standard", "high", "standard", "standard", "standard", "standard"),
-    "frame_unselected":       ("outline",  0,      "c4", "c2", "c1", "c0"),
-    "frame_selected":         ("c4",       0,      "c2", "c0", "c0", "c0"),
-    "frame_highlight":        ("c3",       0,      "c2", "c0", "c0", "c0"),
-    "exit_code_success":      ("c0",       0,      "c4", "c2", "c1", "c0"),
-    "exit_code_error":        ("error",    0,      "c4", "c2", "c1", "c0"),
+    "frame_unselected":       ("outline",  "base",      "c4", "c4", "c3", "c3"),
+    "frame_selected":         ("c4",       "base",      "c4", "c4", "c3", "c3"),
+    "frame_highlight":        ("c3",       "base",      "c4", "c4", "c3", "c3"),
+    "exit_code_success":      ("c3",       "base",      "c4", "c4", "c3", "c3"),
+    "exit_code_error":        ("error",    "base",      "c4", "c4", "c3", "c3"),
 }
 
 
