@@ -5,6 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from .base import BaseTarget
+from .foot import FootTarget
 from .gtk import GtkTarget
 from .hyprland import HyprlandTarget
 from .lf import LfTarget, LfPromptTarget
@@ -19,6 +20,7 @@ _TARGETS: dict[str, type[BaseTarget]] = {
     "lf":        LfTarget,
     "lf-prompt": LfPromptTarget,
     "gtk":       GtkTarget,
+    "foot":      FootTarget,
 }
 
 

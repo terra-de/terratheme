@@ -89,6 +89,47 @@ The red anchor ensures error states are universally recognizable. The blend towa
 
 Chroma is reduced so it reads as a border, not an accent. This is a deliberately simple derivation — outlines just need to separate visual regions, not be beautiful.
 
+### 6. ANSI Terminal Colours (16 tokens)
+
+16 tokens (`ansi_0`–`ansi_15`) map to the standard ANSI terminal colour slots.
+
+**Achromatic slots** (0, 7, 8, 15) map directly to palette tokens:
+
+| ANSI Slot | Maps to | Role |
+|-----------|---------|------|
+| `ansi_0`  | `back`  | Black — darkest background |
+| `ansi_7`  | `muted` | White — secondary text |
+| `ansi_8`  | `base`  | Bright black — elevated background |
+| `ansi_15` | `standard` | Bright white — primary text |
+
+**Chromatic slots** (1–6, 9–14) use a canonical-hue-blend approach:
+
+1. Start from a canonical hue anchor (pure red, green, yellow, blue, magenta, cyan)
+2. Blend 60/40 toward a designated palette token (e.g., red → `error`, green → `c4`)
+3. Apply a mode-dependent luminance shift to separate regular vs bright variants
+
+| Slot | Name | Anchor | Blend Target |
+|------|------|--------|-------------|
+| 1/9  | red / br red | `#ff0000` | `error` |
+| 2/10 | green / br green | `#00ff00` | `c4` |
+| 3/11 | yellow / br yellow | `#ffff00` | `c3` |
+| 4/12 | blue / br blue | `#0000ff` | `c2` |
+| 5/13 | magenta / br magenta | `#ff00ff` | `c4` |
+| 6/14 | cyan / br cyan | `#00ffff` | `c1` |
+
+**Luminance shifts** (matching matugen foot.ini values):
+
+| Slot | Dark regular | Dark bright | Light regular | Light bright |
+|------|-------------|-------------|---------------|--------------|
+| 1    | −8% | +10% | +6%  | +16% |
+| 2    | −8% | +10% | −25% | −10% |
+| 3    | −8% | +10% | −18% | −10% |
+| 4    | +2% | +18% | +6%  | +20% |
+| 5    | −8% | +10% | −18% | −10% |
+| 6    | −8% | +10% | −18% | −10% |
+
+The canonical anchors ensure hue recognisability (red stays red-ish, green stays green-ish) while the palette blend ties the colours to the theme. The shift values are tuned per slot to account for each anchor's natural luminance — naturally dark colours like blue get lightened, naturally bright colours like yellow get darkened in light mode.
+
 ## Mode Structure
 
 ```json
@@ -107,7 +148,9 @@ Chroma is reduced so it reads as a border, not an accent. This is a deliberately
 
 `mode` can be `"light"`, `"dark"`, or `"auto"` (pick based on image luminance analysis at generation time).
 
-## Complete Token List (20 per mode)
+## Complete Token List (36 per mode)
+
+### Visual tokens (20)
 
 ```
 back
@@ -123,6 +166,27 @@ c3           on_c3
 c4           on_c4
 error        on_error
 outline
+```
+
+### ANSI terminal colours (16)
+
+```
+ansi_0       (black)
+ansi_1       (red)
+ansi_2       (green)
+ansi_3       (yellow)
+ansi_4       (blue)
+ansi_5       (magenta)
+ansi_6       (cyan)
+ansi_7       (white)
+ansi_8       (bright black)
+ansi_9       (bright red)
+ansi_10      (bright green)
+ansi_11      (bright yellow)
+ansi_12      (bright blue)
+ansi_13      (bright magenta)
+ansi_14      (bright cyan)
+ansi_15      (bright white)
 ```
 
 ## CLI
