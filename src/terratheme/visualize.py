@@ -90,6 +90,47 @@ def visualize(palette: dict[str, Any], image_path: str) -> None:
         lines.append(_section_line(name, b, tokens["standard"], content_width))
     lines.append("")
 
+    # ── ANSI terminal colour swatches ───────────────────────────────
+    lines.append(f"{BOLD}  ANSI terminal colours{RESET}")
+    lines.append("")
+
+    _ANSI_NAMES = [
+        ("black",  0), ("red",     1), ("green",   2), ("yellow",  3),
+        ("blue",   4), ("magenta", 5), ("cyan",    6), ("white",   7),
+        ("brblack",8), ("brred",   9), ("brgreen",10), ("bryellow",11),
+        ("brblue",12), ("brmagenta",13), ("brcyan",14), ("brwhite",15),
+    ]
+
+    # Row 1: regular (0-7)
+    row1_parts = ["     "]
+    for name, idx in _ANSI_NAMES[:8]:
+        c = tokens[f"ansi_{idx}"]
+        row1_parts.append(f"{fg(c, f'{name:8s}')}")
+    lines.append("".join(row1_parts))
+
+    # Row 2: swatch blocks
+    row2_parts = ["     "]
+    for name, idx in _ANSI_NAMES[:8]:
+        c = tokens[f"ansi_{idx}"]
+        row2_parts.append(f"{bg(c, '  ')}  {fg(c, c)}")
+    lines.append("".join(row2_parts))
+    lines.append("")
+
+    # Row 3: bright (8-15)
+    row3_parts = ["     "]
+    for name, idx in _ANSI_NAMES[8:]:
+        c = tokens[f"ansi_{idx}"]
+        row3_parts.append(f"{fg(c, f'{name:8s}')}")
+    lines.append("".join(row3_parts))
+
+    # Row 4: swatch blocks
+    row4_parts = ["     "]
+    for name, idx in _ANSI_NAMES[8:]:
+        c = tokens[f"ansi_{idx}"]
+        row4_parts.append(f"{bg(c, '  ')}  {fg(c, c)}")
+    lines.append("".join(row4_parts))
+    lines.append("")
+
     # ── Separator ───────────────────────────────────────────────────
     lines.append(f"{BOLD}{'─' * content_width}{RESET}")
     lines.append("")

@@ -20,6 +20,7 @@ from terratheme.palette.color_utils import (
     blend,
     clamp_rgb,
     contrast_ratio,
+    hex_to_rgb,
     hsl_to_rgb,
     reduce_chroma,
     relative_luminance,
@@ -132,6 +133,17 @@ def _derive_on_color(
     return best
 
 
+def _shift_tone(
+    rgb: tuple[float, float, float],
+    delta: float,
+) -> tuple[int, int, int]:
+    """Shift a colour's HSL lightness by ``delta`` (0-1 range), clamped safely."""
+    h, s, l = rgb_to_hsl(rgb[0], rgb[1], rgb[2])
+    new_l = max(0.02, min(0.98, l + delta))
+    r, g, b = hsl_to_rgb(h, s, new_l)
+    return clamp_rgb(r, g, b)
+
+
 def _derive_outline(
     c0: tuple[int, int, int],
     mode: str,
@@ -164,6 +176,109 @@ def _derive_on_error(
         if cr >= 3.0:
             return candidate_rgb
     return clamp_rgb(255, 255, 255)
+
+
+# ── ANSI terminal colour derivation ─────────────────────────────────────
+#
+# Each chromatic ANSI slot (1-6, 9-14) starts from a canonical hue anchor,
+# blends it 60/40 toward a designated palette token, then applies a
+# luminance shift to separate the regular vs bright variant.
+# Achromatic slots (0, 7, 8, 15) map directly to background/text tokens.
+#
+# The blend targets and tone shifts match the values used in the matugen
+# foot.ini / ghostty templates (your dotfiles), so the result should be
+# comparable.  Values are tunable — update the dicts below to taste.
+
+_CANONICAL_ANCHORS: dict[int, tuple[int, int, int]] = {
+    1: (255, 0, 0),      # red
+    2: (0, 255, 0),      # green
+    3: (255, 255, 0),    # yellow
+    4: (0, 0, 255),      # blue
+    5: (255, 0, 255),    # magenta
+    6: (0, 255, 255),    # cyan
+}
+
+# Which palette token each chromatic slot blends toward.
+_BLEND_TARGETS: dict[int, str] = {
+    1: "error",   # red → error (already red-anchored)
+    2: "c4",      # green → loudest accent
+    3: "c3",      # yellow → 2nd loudest accent
+    4: "c2",      # blue → cooler accent
+    5: "c4",      # magenta → loudest accent
+    6: "c1",      # cyan → supporting accent
+}
+
+# Tone shifts per slot: (regular_delta, bright_delta) for (dark, light).
+# These match the matugen foot.ini template values exactly.
+_TONE_SHIFTS: dict[int, tuple[tuple[float, float], tuple[float, float]]] = {
+    1: ((-0.08, 0.10), (0.06, 0.16)),
+    2: ((-0.08, 0.10), (-0.25, -0.10)),
+    3: ((-0.08, 0.10), (-0.18, -0.10)),
+    4: ((0.02, 0.18), (0.06, 0.20)),
+    5: ((-0.08, 0.10), (-0.18, -0.10)),
+    6: ((-0.08, 0.10), (-0.18, -0.10)),
+}
+
+
+def _derive_ansi_colors(
+    tokens: dict[str, str],
+    mode: str,
+    dark_tokens: dict[str, str] | None = None,
+) -> dict[str, str]:
+    """Derive 16 ANSI terminal colours from palette tokens.
+
+    Args:
+        tokens: Current mode's palette tokens.
+        mode: ``"dark"`` or ``"light"``.
+        dark_tokens: Dark-mode palette tokens (needed for achromatic slots
+            that should always be dark — ANSI 0/8).  Passed explicitly so
+            light mode doesn't use light backgrounds for "black".
+
+    Returns a dict with keys ``ansi_0`` through ``ansi_15``.
+    """
+    result: dict[str, str] = {}
+
+    # Achromatic slots
+    # ANSI black (0/8) and white (7/15) always use dark-mode values
+    # regardless of terminal mode, matching the matugen template approach.
+    text_src = dark_tokens if dark_tokens is not None else tokens
+    result["ansi_0"] = text_src["bottom"]
+    result["ansi_8"] = text_src["base"]
+    result["ansi_7"] = text_src["muted"]
+    result["ansi_15"] = text_src["standard"]
+
+    if mode == "dark":
+        shifts = {s: v[0] for s, v in _TONE_SHIFTS.items()}
+    else:
+        shifts = {s: v[1] for s, v in _TONE_SHIFTS.items()}
+
+    # Pre-parse blend-target palette colours to RGB
+    palette_rgb: dict[str, tuple[int, int, int]] = {}
+    for target_name in set(_BLEND_TARGETS.values()):
+        palette_rgb[target_name] = hex_to_rgb(tokens[target_name])
+
+    for slot in range(1, 7):
+        canonical = _CANONICAL_ANCHORS[slot]
+        target_name = _BLEND_TARGETS[slot]
+        target = palette_rgb[target_name]
+        reg_delta, bright_delta = shifts[slot]
+
+        # Blend: 60% canonical, 40% palette
+        blended = blend(
+            (float(canonical[0]), float(canonical[1]), float(canonical[2])),
+            (float(target[0]), float(target[1]), float(target[2])),
+            0.4,
+        )
+
+        # Regular
+        reg = _shift_tone(blended, reg_delta)
+        result[f"ansi_{slot}"] = rgb_hex(*reg)
+
+        # Bright
+        bright = _shift_tone(blended, bright_delta)
+        result[f"ansi_{slot + 8}"] = rgb_hex(*bright)
+
+    return result
 
 
 # ── Public API ──────────────────────────────────────────────────────────
@@ -234,6 +349,12 @@ def derive_palette(
 
         # ── Outline ─────────────────────────────────────────────────
         tokens["outline"] = rgb_hex(*_derive_outline(working[0], m))
+
+        # ── ANSI terminal colours ───────────────────────────────────
+        # For dark mode, dark_tokens is the current tokens (self).
+        # For light mode, dark_tokens is the already-computed dark palette.
+        dark_tokens = tokens if m == "dark" else results["dark"]
+        tokens.update(_derive_ansi_colors(tokens, m, dark_tokens))
 
         results[m] = tokens
 

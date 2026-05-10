@@ -62,6 +62,10 @@ class TestDerive:
             "on_c0", "on_c1", "on_c2", "on_c3", "on_c4",
             "error", "on_error",
             "outline",
+            "ansi_0", "ansi_1", "ansi_2", "ansi_3", "ansi_4", "ansi_5",
+            "ansi_6", "ansi_7", "ansi_8",
+            "ansi_9", "ansi_10", "ansi_11", "ansi_12", "ansi_13",
+            "ansi_14", "ansi_15",
         }
         for mode_name in ("dark", "light"):
             tokens = palette[mode_name]
@@ -175,3 +179,84 @@ class TestDerive:
             bg = hex_to_rgb(palette["dark"][bg_name])
             diff = sum(abs(outline[i] - bg[i]) for i in range(3))
             assert diff > 10, f"outline too close to {bg_name}: diff={diff}"
+
+    # ── ANSI token tests ────────────────────────────────────────────
+
+    def test_ansi_tokens_present(self) -> None:
+        palette = derive_palette(self.sources, mode="dark")
+        for mode_name in ("dark", "light"):
+            tokens = palette[mode_name]
+            for i in range(16):
+                key = f"ansi_{i}"
+                assert key in tokens, f"missing {key} in {mode_name} mode"
+
+    def test_ansi_tokens_valid_hex(self) -> None:
+        palette = derive_palette(self.sources, mode="dark")
+        for mode_name in ("dark", "light"):
+            for i in range(16):
+                hex_str = palette[mode_name][f"ansi_{i}"]
+                assert hex_str.startswith("#"), f"{mode_name}.ansi_{i}: not a hex string"
+                assert len(hex_str) == 7, f"{mode_name}.ansi_{i}: wrong length"
+                int(hex_str[1:], 16)  # will raise if invalid
+
+    def test_ansi_0_is_background(self) -> None:
+        """ansi_0 (black) should equal dark-mode bottom, ansi_8 (br black) should equal dark-mode base."""
+        palette = derive_palette(self.sources, mode="dark")
+        dark = palette["dark"]
+        for mode_name in ("dark", "light"):
+            tokens = palette[mode_name]
+            assert tokens["ansi_0"] == dark["bottom"], (
+                f"{mode_name}: ansi_0 ({tokens['ansi_0']}) != dark.bottom ({dark['bottom']})"
+            )
+            assert tokens["ansi_8"] == dark["base"], (
+                f"{mode_name}: ansi_8 ({tokens['ansi_8']}) != dark.base ({dark['base']})"
+            )
+
+    def test_ansi_7_is_muted_text(self) -> None:
+        """ansi_7 (white) should equal dark muted, ansi_15 (br white) should equal dark standard."""
+        palette = derive_palette(self.sources, mode="dark")
+        dark = palette["dark"]
+        for mode_name in ("dark", "light"):
+            tokens = palette[mode_name]
+            assert tokens["ansi_7"] == dark["muted"], (
+                f"{mode_name}: ansi_7 ({tokens['ansi_7']}) != dark.muted ({dark['muted']})"
+            )
+            assert tokens["ansi_15"] == dark["standard"], (
+                f"{mode_name}: ansi_15 ({tokens['ansi_15']}) != dark.standard ({dark['standard']})"
+            )
+
+    def test_ansi_1_is_reddish(self) -> None:
+        """ANSI red slot should have dominant red component."""
+        palette = derive_palette(self.sources, mode="dark")
+        for mode_name in ("dark", "light"):
+            r, g, b = hex_to_rgb(palette[mode_name]["ansi_1"])
+            assert r > g, f"{mode_name}.ansi_1 ({palette[mode_name]['ansi_1']}): R={r} <= G={g}"
+            assert r > b, f"{mode_name}.ansi_1 ({palette[mode_name]['ansi_1']}): R={r} <= B={b}"
+
+    def test_ansi_bright_differs_from_regular(self) -> None:
+        """Bright variant should differ from regular for all chromatic slots."""
+        palette = derive_palette(self.sources, mode="dark")
+        for slot in range(1, 7):
+            for mode_name in ("dark", "light"):
+                reg = palette[mode_name][f"ansi_{slot}"]
+                bri = palette[mode_name][f"ansi_{slot + 8}"]
+                assert reg != bri, (
+                    f"{mode_name}.ansi_{slot} ({reg}) == bright ({bri})"
+                )
+
+    def test_ansi_bright_lighter_in_dark_mode(self) -> None:
+        """In dark mode, bright variants should be lighter than regular for most slots."""
+        from terratheme.palette.color_utils import relative_luminance
+
+        palette = derive_palette(self.sources, mode="dark")
+        # Slots 1-6 should all have bright lighter than regular in dark mode
+        # (slot 4 has +0.02 reg vs +0.18 bright, slot 1/2/3/5/6 have -0.08 reg vs +0.10 bright)
+        for slot in range(1, 7):
+            reg = hex_to_rgb(palette["dark"][f"ansi_{slot}"])
+            bri = hex_to_rgb(palette["dark"][f"ansi_{slot + 8}"])
+            reg_lum = relative_luminance(*reg)
+            bri_lum = relative_luminance(*bri)
+            assert bri_lum > reg_lum, (
+                f"dark.ansi_{slot}: bright ({bri_lum:.3f}) not lighter "
+                f"than regular ({reg_lum:.3f})"
+            )
