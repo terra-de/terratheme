@@ -36,10 +36,11 @@ def _hex_stripped(hex_str: str) -> str:
 
 def _section(lines: list[str], mode: str, colors: dict[str, str]) -> None:
     # Background/foreground use mode-appropriate tokens.
-    # ANSI slots (regular0-7, bright0-7) always use dark-mode values so that
-    # ANSI black is always dark, white is always light, regardless of mode.
+    # ANSI slots (regular0-7, bright0-7) use cross-mode references so that
+    # ANSI black/bright-black are always near-black (from dark palette) and
+    # white/bright-white are always near-white (from light palette).
     lines.append(f"[colors-{mode}]")
-    lines.append(f"background={_hex_stripped(colors['bottom'])}")
+    lines.append(f"background={_hex_stripped(colors['base'])}")
     lines.append(f"foreground={_hex_stripped(colors['standard'])}")
     lines.append(f"selection-background={_hex_stripped(colors['base'])}")
     lines.append(f"selection-foreground={_hex_stripped(colors['standard'])}")

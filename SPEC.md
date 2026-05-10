@@ -25,17 +25,18 @@ The 5 source colors are ordered by prevalence (how much of the image they occupy
 
 | Token | Source | Role |
 |-------|--------|------|
-| `back` | c3, adjusted | Deepest layer (bar bg, desktop backdrop) |
+| `bottom` | c0, adjusted | Deepest layer (bar bg, desktop backdrop) |
+| `low` | c0, adjusted | Secondary surface |
 | `base` | c0, adjusted | Main surface (panel bg, window bg) |
-| `front` | c1, adjusted | Elevated (menus, tooltips, notifications) |
-| `top` | c2, adjusted | Very front (OSD, modal popups) |
+| `high` | c0, adjusted | Elevated (menus, tooltips, notifications) |
+| `top` | c0, adjusted | Very front (OSD, modal popups) |
 
-**Adjustment**: take the source color, reduce chroma to ~5–10% of original, and shift tone:
+**Adjustment**: take the source color, reduce chroma to ~75% of original, and shift tone:
 
-- **Dark mode**: tones from 3–15% luminance (back is darkest, top is lightest)
-- **Light mode**: tones from 85–97% luminance (back is darkest, top is lightest)
+- **Dark mode**: tones from 4–40% luminance (bottom is darkest, top is lightest)
+- **Light mode**: tones from 60–96% luminance (bottom is brightest, top is darkest — reversed)
 
-Layer ordering within each mode: `back` → `base` → `front` → `top` (darkest to lightest in dark mode, or the reverse luminance ordering for light mode so they remain visually distinct).
+Layer ordering: `bottom` → `low` → `base` → `high` → `top`. In dark mode this goes darkest→lightest; in light mode it goes lightest→darkest. `base` is always the central mid-tone surface token in both modes.
 
 ### 2. Text / Foreground (2 tokens)
 
@@ -93,14 +94,21 @@ Chroma is reduced so it reads as a border, not an accent. This is a deliberately
 
 16 tokens (`ansi_0`–`ansi_15`) map to the standard ANSI terminal colour slots.
 
-**Achromatic slots** (0, 7, 8, 15) map directly to palette tokens:
+**Achromatic slots** (0, 7, 8, 15) use cross-mode palette references so black/bright-black are always near-black and white/bright-white are always near-white, regardless of terminal mode:
 
-| ANSI Slot | Maps to | Role |
-|-----------|---------|------|
-| `ansi_0`  | `back`  | Black — darkest background |
-| `ansi_7`  | `muted` | White — secondary text |
-| `ansi_8`  | `base`  | Bright black — elevated background |
-| `ansi_15` | `standard` | Bright white — primary text |
+| ANSI Slot | Maps to | Source | Role |
+|-----------|---------|--------|------|
+| `ansi_0`  | `base`  | dark palette | Black — always near-black background |
+| `ansi_8`  | `high`  | dark palette | Bright black — slightly lighter near-black |
+| `ansi_7`  | `base`  | light palette | White — always near-white background |
+| `ansi_15` | `low`   | light palette | Bright white — slightly brighter near-white |
+
+Terminal background and foreground use mode-appropriate tokens:
+
+| Setting | Dark mode | Light mode |
+|---------|-----------|------------|
+| background | dark `base` | light `base` |
+| foreground | dark `standard` | light `standard` |
 
 **Chromatic slots** (1–6, 9–14) use a canonical-hue-blend approach:
 

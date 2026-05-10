@@ -72,7 +72,7 @@ _SECTIONS: dict[str, dict[str, str]] = {
     },
     "Colors:Header": {
         "BackgroundAlternate": "base",
-        "BackgroundNormal": "high",
+        "BackgroundNormal": "base",
         "DecorationFocus": "c4",
         "DecorationHover": "c4",
         "ForegroundActive": "c4",
@@ -128,7 +128,7 @@ _SECTIONS: dict[str, dict[str, str]] = {
     },
     "Colors:View": {
         "BackgroundAlternate": "high",
-        "BackgroundNormal": "base",
+        "BackgroundNormal": "high",
         "DecorationFocus": "c4",
         "DecorationHover": "c4",
         "ForegroundActive": "c4",
@@ -142,7 +142,7 @@ _SECTIONS: dict[str, dict[str, str]] = {
     },
     "Colors:Window": {
         "BackgroundAlternate": "base",
-        "BackgroundNormal": "high",
+        "BackgroundNormal": "base",
         "DecorationFocus": "c4",
         "DecorationHover": "c4",
         "ForegroundActive": "c4",

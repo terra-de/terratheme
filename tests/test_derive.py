@@ -142,13 +142,22 @@ class TestDerive:
 
         palette = derive_palette(self.sources, mode="dark")
         names = ["bottom", "low", "base", "high", "top"]
-        for mode_name in ("dark", "light"):
-            values = [rgb_to_hsl(*hex_to_rgb(palette[mode_name][n]))[2] for n in names]
-            for i in range(len(values) - 1):
-                assert values[i] <= values[i + 1], (
-                    f"{mode_name} bg {names[i]} (l={values[i]:.3f}) > "
-                    f"{names[i + 1]} (l={values[i + 1]:.3f})"
-                )
+
+        # Dark mode: bottom=darkest, top=brightest (ascending)
+        dark_values = [rgb_to_hsl(*hex_to_rgb(palette["dark"][n]))[2] for n in names]
+        for i in range(len(dark_values) - 1):
+            assert dark_values[i] <= dark_values[i + 1], (
+                f"dark bg {names[i]} (l={dark_values[i]:.3f}) > "
+                f"{names[i + 1]} (l={dark_values[i + 1]:.3f})"
+            )
+
+        # Light mode: bottom=brightest, top=darkest (descending)
+        light_values = [rgb_to_hsl(*hex_to_rgb(palette["light"][n]))[2] for n in names]
+        for i in range(len(light_values) - 1):
+            assert light_values[i] >= light_values[i + 1], (
+                f"light bg {names[i]} (l={light_values[i]:.3f}) < "
+                f"{names[i + 1]} (l={light_values[i + 1]:.3f})"
+            )
 
     def test_contrast_log_populated(self) -> None:
         palette = derive_palette(self.sources, mode="dark")
@@ -200,29 +209,29 @@ class TestDerive:
                 int(hex_str[1:], 16)  # will raise if invalid
 
     def test_ansi_0_is_background(self) -> None:
-        """ansi_0 (black) should equal dark-mode bottom, ansi_8 (br black) should equal dark-mode base."""
+        """ansi_0 (black) should equal dark-mode base, ansi_8 (br black) should equal dark-mode high."""
         palette = derive_palette(self.sources, mode="dark")
         dark = palette["dark"]
         for mode_name in ("dark", "light"):
             tokens = palette[mode_name]
-            assert tokens["ansi_0"] == dark["bottom"], (
-                f"{mode_name}: ansi_0 ({tokens['ansi_0']}) != dark.bottom ({dark['bottom']})"
+            assert tokens["ansi_0"] == dark["base"], (
+                f"{mode_name}: ansi_0 ({tokens['ansi_0']}) != dark.base ({dark['base']})"
             )
-            assert tokens["ansi_8"] == dark["base"], (
-                f"{mode_name}: ansi_8 ({tokens['ansi_8']}) != dark.base ({dark['base']})"
+            assert tokens["ansi_8"] == dark["high"], (
+                f"{mode_name}: ansi_8 ({tokens['ansi_8']}) != dark.high ({dark['high']})"
             )
 
-    def test_ansi_7_is_muted_text(self) -> None:
-        """ansi_7 (white) should equal dark muted, ansi_15 (br white) should equal dark standard."""
+    def test_ansi_7_is_light_reference(self) -> None:
+        """ansi_7 (white) should equal light-mode base, ansi_15 (br white) should equal light-mode low."""
         palette = derive_palette(self.sources, mode="dark")
-        dark = palette["dark"]
+        light = palette["light"]
         for mode_name in ("dark", "light"):
             tokens = palette[mode_name]
-            assert tokens["ansi_7"] == dark["muted"], (
-                f"{mode_name}: ansi_7 ({tokens['ansi_7']}) != dark.muted ({dark['muted']})"
+            assert tokens["ansi_7"] == light["base"], (
+                f"{mode_name}: ansi_7 ({tokens['ansi_7']}) != light.base ({light['base']})"
             )
-            assert tokens["ansi_15"] == dark["standard"], (
-                f"{mode_name}: ansi_15 ({tokens['ansi_15']}) != dark.standard ({dark['standard']})"
+            assert tokens["ansi_15"] == light["low"], (
+                f"{mode_name}: ansi_15 ({tokens['ansi_15']}) != light.low ({light['low']})"
             )
 
     def test_ansi_1_is_reddish(self) -> None:

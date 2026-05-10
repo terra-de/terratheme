@@ -29,9 +29,11 @@ from terratheme.palette.color_utils import (
 )
 
 # ── Background target tones ─────────────────────────────────────────────
-# 5 layers: bottom (deepest/darkest) → low → base → high → top (foremost)
+# 5 layers: bottom (deepest/darkest) → low → base → high → top (foremost).
+# Dark mode: bottom is darkest, top is brightest.
+# Light mode: bottom is brightest, top is darkest (reversed).
 DARK_BG_TONES  = [0.04, 0.10, 0.18, 0.28, 0.40]
-LIGHT_BG_TONES = [0.60, 0.72, 0.82, 0.90, 0.96]
+LIGHT_BG_TONES = [0.96, 0.90, 0.82, 0.72, 0.60]
 
 BG_NAMES = ["bottom", "low", "base", "high", "top"]
 
@@ -58,7 +60,9 @@ def _derive_background(
 ) -> tuple[int, int, int]:
     """Produce a background tone from a source colour.
 
-    *layer_index*: 0=bottom → 4=top (darkest → lightest).
+    *layer_index*: 0=bottom → 4=top.
+    In dark mode, 0=darkest and 4=brightest.
+    In light mode, 0=brightest and 4=darkest (tone array is reversed).
     All backgrounds derive from the same source (c0) for a cohesive look.
     """
     tones = DARK_BG_TONES if mode == "dark" else LIGHT_BG_TONES
@@ -183,7 +187,9 @@ def _derive_on_error(
 # Each chromatic ANSI slot (1-6, 9-14) starts from a canonical hue anchor,
 # blends it 60/40 toward a designated palette token, then applies a
 # luminance shift to separate the regular vs bright variant.
-# Achromatic slots (0, 7, 8, 15) map directly to background/text tokens.
+# Achromatic slots (0, 7, 8, 15) use cross-mode references so black/bright-black
+# are always near-black (from the dark palette) and white/bright-white are always
+# near-white (from the light palette), regardless of the terminal's mode.
 #
 # The blend targets and tone shifts match the values used in the matugen
 # foot.ini / ghostty templates (your dotfiles), so the result should be
@@ -223,29 +229,30 @@ _TONE_SHIFTS: dict[int, tuple[tuple[float, float], tuple[float, float]]] = {
 def _derive_ansi_colors(
     tokens: dict[str, str],
     mode: str,
-    dark_tokens: dict[str, str] | None = None,
+    dark_tokens: dict[str, str],
+    light_tokens: dict[str, str],
 ) -> dict[str, str]:
     """Derive 16 ANSI terminal colours from palette tokens.
 
+    Achromatic slots use cross-mode references so black/bright-black are
+    always near-black (from dark palette layers) and white/bright-white are
+    always near-white (from light palette layers), regardless of terminal mode.
+
     Args:
-        tokens: Current mode's palette tokens.
+        tokens: Current mode's palette tokens (used for chromatic slots).
         mode: ``"dark"`` or ``"light"``.
-        dark_tokens: Dark-mode palette tokens (needed for achromatic slots
-            that should always be dark — ANSI 0/8).  Passed explicitly so
-            light mode doesn't use light backgrounds for "black".
+        dark_tokens: Dark-mode palette tokens (for ansi_0/8).
+        light_tokens: Light-mode palette tokens (for ansi_7/15).
 
     Returns a dict with keys ``ansi_0`` through ``ansi_15``.
     """
     result: dict[str, str] = {}
 
-    # Achromatic slots
-    # ANSI black (0/8) and white (7/15) always use dark-mode values
-    # regardless of terminal mode, matching the matugen template approach.
-    text_src = dark_tokens if dark_tokens is not None else tokens
-    result["ansi_0"] = text_src["bottom"]
-    result["ansi_8"] = text_src["base"]
-    result["ansi_7"] = text_src["muted"]
-    result["ansi_15"] = text_src["standard"]
+    # Achromatic slots — cross-mode references for fixed near-black/near-white
+    result["ansi_0"]  = dark_tokens["base"]    # always near-black
+    result["ansi_8"]  = dark_tokens["high"]    # always near-black
+    result["ansi_7"]  = light_tokens["base"]   # always near-white
+    result["ansi_15"] = light_tokens["low"]    # always near-white
 
     if mode == "dark":
         shifts = {s: v[0] for s, v in _TONE_SHIFTS.items()}
@@ -314,6 +321,7 @@ def derive_palette(
 
     results: dict[str, dict[str, str]] = {}
 
+    # ── Pass 1: Visual tokens for both modes ──────────────────────────
     for m in ("dark", "light"):
         tokens: dict[str, str] = {}
 
@@ -350,12 +358,13 @@ def derive_palette(
         # ── Outline ─────────────────────────────────────────────────
         tokens["outline"] = rgb_hex(*_derive_outline(working[0], m))
 
-        # ── ANSI terminal colours ───────────────────────────────────
-        # For dark mode, dark_tokens is the current tokens (self).
-        # For light mode, dark_tokens is the already-computed dark palette.
-        dark_tokens = tokens if m == "dark" else results["dark"]
-        tokens.update(_derive_ansi_colors(tokens, m, dark_tokens))
+        results[m] = tokens
 
+    # ── Pass 2: ANSI tokens for both modes ────────────────────────────
+    # Both palettes are now available, needed for cross-mode achromatic refs.
+    for m in ("dark", "light"):
+        tokens = results[m]
+        tokens.update(_derive_ansi_colors(tokens, m, results["dark"], results["light"]))
         results[m] = tokens
 
     # ── Contrast log ─────────────────────────────────────────────────
