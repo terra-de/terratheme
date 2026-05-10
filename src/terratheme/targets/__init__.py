@@ -8,6 +8,7 @@ from .base import BaseTarget
 from .gtk import GtkTarget
 from .hyprland import HyprlandTarget
 from .lf import LfTarget, LfPromptTarget
+from .qt import QtTarget
 from .zellij import ZellijTarget
 
 # ---------------------------------------------------------------------------
@@ -19,6 +20,7 @@ _TARGETS: dict[str, type[BaseTarget]] = {
     "lf":        LfTarget,
     "lf-prompt": LfPromptTarget,
     "gtk":       GtkTarget,
+    "qt":        QtTarget,
 }
 
 
