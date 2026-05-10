@@ -42,6 +42,7 @@ class GtkTarget(BaseTarget):
         on_c2 = _hex(colors["on_c2"])
         c1 = _hex(colors["c1"])
         on_c1 = _hex(colors["on_c1"])
+        low = _hex(colors["low"])
         bottom = _hex(colors["bottom"])
         base = _hex(colors["base"])
         high = _hex(colors["high"])
@@ -58,7 +59,7 @@ class GtkTarget(BaseTarget):
  */
 
 /* ---------- adw-gtk-theme (GTK3) ---------- */
-@define-color window_bg_color #{bottom};
+@define-color window_bg_color #{base};
 @define-color window_fg_color #{standard};
 @define-color view_bg_color #{base};
 @define-color view_fg_color @window_fg_color;
@@ -104,10 +105,10 @@ class GtkTarget(BaseTarget):
 @define-color base_color #{base};
 @define-color text_color #{standard};
 @define-color insensitive_fg_color #{muted};
-@define-color insensitive_bg_color #{bottom};
+@define-color insensitive_bg_color #{base};
 @define-color selected_fg_color #{on_c4};
 @define-color selected_bg_color #{c4};
-@define-color scrollbar_bg_color #{bottom};
+@define-color scrollbar_bg_color #{high};
 @define-color scrollbar_slider_color #{c4};
 @define-color tooltip_fg_color #{on_c4};
 @define-color tooltip_bg_color #{top};
