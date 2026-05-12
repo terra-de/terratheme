@@ -184,46 +184,148 @@ def _derive_on_error(
 
 # ── ANSI terminal colour derivation ─────────────────────────────────────
 #
-# Each chromatic ANSI slot (1-6, 9-14) starts from a canonical hue anchor,
-# blends it 60/40 toward a designated palette token, then applies a
-# luminance shift to separate the regular vs bright variant.
-# Achromatic slots (0, 7, 8, 15) use cross-mode references so black/bright-black
-# are always near-black (from the dark palette) and white/bright-white are always
-# near-white (from the light palette), regardless of the terminal's mode.
+# Chromatic ANSI slots (1-6, 9-14) are derived by:
+#   1. Dynamically assigning each slot to its nearest palette token by hue
+#      (c1-c4, error) — closest hue wins, conflicts resolved greedily.
+#   2. Blending the canonical hue toward the assigned palette token with an
+#      adaptive ratio: close matches get more palette influence (40%),
+#      distant matches stay closer to canonical (15%).
+#   3. For slots with no palette assignment (more slots than tokens), the
+#      nearest assigned neighbour is hue-rotated to fill the gap.
+#   4. Bright variants are boosted in lightness; all colours are validated
+#      for ≥3.0:1 contrast against the terminal background (high layer).
 #
-# The blend targets and tone shifts match the values used in the matugen
-# foot.ini / ghostty templates (your dotfiles), so the result should be
-# comparable.  Values are tunable — update the dicts below to taste.
+# Achromatic slots (0, 7, 8, 15) use cross-mode references: near-black from
+# the dark palette, near-white from the light palette.
 
-_CANONICAL_ANCHORS: dict[int, tuple[int, int, int]] = {
-    1: (255, 0, 0),      # red
-    2: (0, 255, 0),      # green
-    3: (255, 255, 0),    # yellow
-    4: (0, 0, 255),      # blue
-    5: (255, 0, 255),    # magenta
-    6: (0, 255, 255),    # cyan
+from terratheme.palette.syntax_utils import hue_distance
+
+# Canonical ANSI hues and their RGB anchors
+_CANONICAL_SLOTS: dict[int, dict] = {
+    1: {"name": "red",     "hue": 0.0,      "rgb": (255, 0, 0)},
+    2: {"name": "green",   "hue": 120.0/360.0,  "rgb": (0, 255, 0)},
+    3: {"name": "yellow",  "hue": 60.0/360.0,   "rgb": (255, 255, 0)},
+    4: {"name": "blue",    "hue": 240.0/360.0,  "rgb": (0, 0, 255)},
+    5: {"name": "magenta", "hue": 300.0/360.0,  "rgb": (255, 0, 255)},
+    6: {"name": "cyan",    "hue": 180.0/360.0,  "rgb": (0, 255, 255)},
 }
 
-# Which palette token each chromatic slot blends toward.
-_BLEND_TARGETS: dict[int, str] = {
-    1: "error",   # red → error (already red-anchored)
-    2: "c4",      # green → loudest accent
-    3: "c3",      # yellow → 2nd loudest accent
-    4: "c2",      # blue → cooler accent
-    5: "c4",      # magenta → loudest accent
-    6: "c1",      # cyan → supporting accent
-}
+# Palette tokens available for chromatic slot assignment
+_ANSI_SOURCE_TOKENS = ["c1", "c2", "c3", "c4", "error"]
 
-# Tone shifts per slot: (regular_delta, bright_delta) for (dark, light).
-# These match the matugen foot.ini template values exactly.
-_TONE_SHIFTS: dict[int, tuple[tuple[float, float], tuple[float, float]]] = {
-    1: ((-0.08, 0.10), (0.06, 0.16)),
-    2: ((-0.08, 0.10), (-0.25, -0.10)),
-    3: ((-0.08, 0.10), (-0.18, -0.10)),
-    4: ((0.02, 0.18), (0.06, 0.20)),
-    5: ((-0.08, 0.10), (-0.18, -0.10)),
-    6: ((-0.08, 0.10), (-0.18, -0.10)),
-}
+
+def _hue_of_hex(hex_str: str) -> float:
+    """Return normalised hue (0-1) of a hex colour."""
+    r, g, b = hex_to_rgb(hex_str)
+    h, _s, _l = rgb_to_hsl(float(r), float(g), float(b))
+    return h / 360.0
+
+
+def _adaptive_blend(distance: float) -> float:
+    """Blend factor: close hues blend more toward palette, distant less."""
+    # 0.40 at distance=0, 0.10 at distance=0.5+
+    return max(0.10, min(0.40, 0.40 - distance * 0.60))
+
+
+def _assign_nearest(tokens: dict[str, str]) -> dict[int, str | None]:
+    """Greedily assign each ANSI slot to its nearest palette token by hue.
+
+    Returns {slot: token_name_or_None}. Slots without assignment will be
+    filled via hue rotation from their nearest assigned neighbour.
+    """
+    # Compute hues of available palette tokens
+    token_hues: dict[str, float] = {}
+    for token in _ANSI_SOURCE_TOKENS:
+        if token in tokens:
+            token_hues[token] = _hue_of_hex(tokens[token])
+
+    # Collect all (slot, token, distance) triples and sort by distance
+    candidates: list[tuple[int, str, float]] = []
+    for slot, info in _CANONICAL_SLOTS.items():
+        ch = info["hue"]
+        for token, th in token_hues.items():
+            candidates.append((slot, token, hue_distance(ch, th)))
+
+    candidates.sort(key=lambda x: x[2])  # closest first
+
+    assigned_slots: set[int] = set()
+    used_tokens: set[str] = set()
+    result: dict[int, str | None] = {}
+
+    for slot, token, _dist in candidates:
+        if slot in assigned_slots or token in used_tokens:
+            continue
+        result[slot] = token
+        assigned_slots.add(slot)
+        used_tokens.add(token)
+
+    # Any remaining slots get None (filled via hue rotation)
+    for slot in _CANONICAL_SLOTS:
+        if slot not in result:
+            result[slot] = None
+
+    return result
+
+
+def _fill_hue_rotation(
+    slot: int,
+    assignments: dict[int, str | None],
+    generated: dict[int, tuple[float, float, float]],
+    tokens: dict[str, str],
+) -> tuple[float, float, float]:
+    """Fill an unassigned slot by rotating the nearest assigned neighbour's hue."""
+    target_hue = _CANONICAL_SLOTS[slot]["hue"]
+
+    # Find nearest assigned slot (by hue distance)
+    best_dist = float("inf")
+    best_rgb = (128.0, 128.0, 128.0)
+    for s, info in _CANONICAL_SLOTS.items():
+        if s == slot or s not in generated:
+            continue
+        d = hue_distance(target_hue, info["hue"])
+        if d < best_dist:
+            best_dist = d
+            best_rgb = generated[s]
+
+    # Rotate to target hue
+    h, s_val, l_val = rgb_to_hsl(best_rgb[0], best_rgb[1], best_rgb[2])
+    r, g, b = hsl_to_rgb(target_hue * 360.0, s_val, l_val)
+    return (r, g, b)
+
+
+def _ensure_contrast(
+    rgb: tuple[float, float, float],
+    bg_hex: str,
+    target: float,
+) -> tuple[float, float, float]:
+    """Lighten or darken *rgb* to achieve *target* contrast against *bg*."""
+    bg_rgb = hex_to_rgb(bg_hex)
+    if contrast_ratio(rgb, bg_rgb) >= target:
+        return rgb
+    h, s, l = rgb_to_hsl(rgb[0], rgb[1], rgb[2])
+    bg_lum = relative_luminance(float(bg_rgb[0]), float(bg_rgb[1]), float(bg_rgb[2]))
+    low, high = (0.10, 0.95)
+    if bg_lum > 0.5:
+        search_start, search_end = low, l
+    else:
+        search_start, search_end = l, high
+    best_l, best_r = l, rgb
+    for _ in range(20):
+        mid = (search_start + search_end) / 2
+        r2, g2, b2 = hsl_to_rgb(h, s, mid)
+        test_rgb = (r2, g2, b2)
+        cr = contrast_ratio(test_rgb, bg_rgb)
+        if cr >= target:
+            best_l, best_r = mid, test_rgb
+            # Pass — try DARKER (lower L) to find the minimum
+            search_end = mid
+        else:
+            # Fail — try LIGHTER (higher L) in direction of travel
+            if bg_lum > 0.5:
+                search_start = mid
+            else:
+                search_start = mid
+    return best_r
 
 
 def _derive_ansi_colors(
@@ -248,42 +350,62 @@ def _derive_ansi_colors(
     """
     result: dict[str, str] = {}
 
-    # Achromatic slots — cross-mode references for fixed near-black/near-white
-    result["ansi_0"]  = dark_tokens["base"]    # always near-black
-    result["ansi_8"]  = dark_tokens["high"]    # always near-black
-    result["ansi_7"]  = light_tokens["base"]   # always near-white
-    result["ansi_15"] = light_tokens["low"]    # always near-white
+    # ── Achromatic slots ──────────────────────────────────────────────
+    result["ansi_0"]  = dark_tokens["base"]
+    result["ansi_8"]  = dark_tokens["high"]
+    result["ansi_7"]  = light_tokens["base"]
+    result["ansi_15"] = light_tokens["low"]
 
-    if mode == "dark":
-        shifts = {s: v[0] for s, v in _TONE_SHIFTS.items()}
-    else:
-        shifts = {s: v[1] for s, v in _TONE_SHIFTS.items()}
+    # ── Assign palette tokens to slots ────────────────────────────────
+    assignments = _assign_nearest(tokens)
 
-    # Pre-parse blend-target palette colours to RGB
-    palette_rgb: dict[str, tuple[int, int, int]] = {}
-    for target_name in set(_BLEND_TARGETS.values()):
-        palette_rgb[target_name] = hex_to_rgb(tokens[target_name])
+    # ── Generate chromatic slot colours ───────────────────────────────
+    bg_hex = tokens.get("high", tokens.get("base", "#000000"))
+    generated: dict[int, tuple[float, float, float]] = {}
 
     for slot in range(1, 7):
-        canonical = _CANONICAL_ANCHORS[slot]
-        target_name = _BLEND_TARGETS[slot]
-        target = palette_rgb[target_name]
-        reg_delta, bright_delta = shifts[slot]
+        info = _CANONICAL_SLOTS[slot]
+        token = assignments.get(slot)
 
-        # Blend: 60% canonical, 40% palette
-        blended = blend(
-            (float(canonical[0]), float(canonical[1]), float(canonical[2])),
-            (float(target[0]), float(target[1]), float(target[2])),
-            0.4,
-        )
+        if token:
+            # Blend canonical toward assigned palette token
+            canonical = (float(info["rgb"][0]), float(info["rgb"][1]), float(info["rgb"][2]))
+            palette_rgb_val = (float(v) for v in hex_to_rgb(tokens[token]))
+            palette_rgb_tup = tuple(palette_rgb_val)  # noqa
+            distance = hue_distance(info["hue"], _hue_of_hex(tokens[token]))
+            blend_factor = _adaptive_blend(distance)
+            blended = blend(canonical, palette_rgb_tup, blend_factor)
+        else:
+            # Hue rotation from nearest assigned neighbour
+            blended = _fill_hue_rotation(slot, assignments, generated, tokens)
 
-        # Regular
-        reg = _shift_tone(blended, reg_delta)
-        result[f"ansi_{slot}"] = rgb_hex(*reg)
+        # Regular variant: slight darkening for dark mode
+        h, s, l = rgb_to_hsl(blended[0], blended[1], blended[2])
+        if mode == "dark":
+            reg_l = max(0.25, l - 0.05)
+        else:
+            reg_l = min(0.75, l + 0.05)
+        reg_rgb = tuple(float(v) for v in hsl_to_rgb(h, s, reg_l))
 
-        # Bright
-        bright = _shift_tone(blended, bright_delta)
-        result[f"ansi_{slot + 8}"] = rgb_hex(*bright)
+        # Validate regular against terminal background
+        reg_rgb = _ensure_contrast(reg_rgb, bg_hex, 3.0)
+
+        # Bright variant: boost lightness past regular, ensure separation
+        _h, _s, reg_final_l = rgb_to_hsl(reg_rgb[0], reg_rgb[1], reg_rgb[2])
+        bright_l = min(0.88, reg_final_l + 0.22)
+        bright_rgb = tuple(float(v) for v in hsl_to_rgb(_h, _s, bright_l))
+        # Validate bright separately (different starting L ensures diff)
+        bright_rgb = _ensure_contrast(bright_rgb, bg_hex, 3.0)
+        # Guarantee bright is strictly lighter than regular
+        _bh, _bs, bl = rgb_to_hsl(bright_rgb[0], bright_rgb[1], bright_rgb[2])
+        if bl <= reg_final_l + 0.005:
+            bl = reg_final_l + 0.08
+            bright_rgb = tuple(float(v) for v in hsl_to_rgb(_bh, _bs, bl))
+            bright_rgb = _ensure_contrast(bright_rgb, bg_hex, 3.0)
+
+        result[f"ansi_{slot}"] = rgb_hex(*clamp_rgb(*reg_rgb))
+        result[f"ansi_{slot + 8}"] = rgb_hex(*clamp_rgb(*bright_rgb))
+        generated[slot] = reg_rgb
 
     return result
 
