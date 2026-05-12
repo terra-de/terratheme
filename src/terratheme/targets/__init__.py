@@ -9,6 +9,7 @@ from .foot import FootTarget
 from .gtk import GtkTarget
 from .hyprland import HyprlandTarget
 from .lf import LfTarget, LfPromptTarget
+from .nvim import NeovimTarget
 from .qt import QtTarget
 from .zellij import ZellijTarget
 
@@ -21,6 +22,7 @@ _TARGETS: dict[str, type[BaseTarget]] = {
     "lf":        LfTarget,
     "lf-prompt": LfPromptTarget,
     "gtk":       GtkTarget,
+    "nvim":      NeovimTarget,
     "qt":        QtTarget,
     "foot":      FootTarget,
 }

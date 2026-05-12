@@ -85,11 +85,11 @@ def _derive_muted_text(
     standard: tuple[int, int, int],
     mode: str,
 ) -> tuple[int, int, int]:
-    """Lower-contrast version of standard text."""
+    """Lower-contrast version of standard text, closer to fg so it stays readable."""
     bg_l = 0.10 if mode == "dark" else 0.90
     h, s, _l = rgb_to_hsl(float(standard[0]), float(standard[1]), float(standard[2]))
-    target = _l + (bg_l - _l) * 0.4
-    r, g, b = hsl_to_rgb(h, s * 0.5, target)
+    target = _l + (bg_l - _l) * 0.25
+    r, g, b = hsl_to_rgb(h, s * 0.7, target)
     return clamp_rgb(r, g, b)
 
 

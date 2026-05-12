@@ -217,9 +217,41 @@ terratheme generate <image> --visualize          # Terminal preview (no file wri
 4. **Error stays red**: One hardcoded hue anchor for universal recognition, blended just enough to fit the palette.
 5. **Everything logged**: Contrast ratios are generated but not enforced — we collect data first, tune thresholds later.
 
-## Open Items (Future Phases)
+## Roadmap — Planned Targets & Integrations
 
-- ANSI terminal color mapping (16 colors from this palette)
-- Template rendering (foot, zellij, nvim, lf, gtk, qt, hyprland, etc.)
-- `terratheme apply` command
-- TTheme v2 to consume palette.json v2
+### Phase: Neovim Integration (Rework)
+- **Status**: Planned
+- **Approach**: Shift the work from Neovim-side to terratheme-side. Instead of a hand-written Lua table of Material 3 tokens, terratheme will generate a custom Neovim colorscheme file that maps Terra DE v2 tokens directly to Neovim highlight groups.
+- **Output**: `~/.local/share/nvim/matugen.lua` (or similar)
+- **Post-hook**: None (sourced by Neovim config on startup; may add `nvim --headless +'lua vim.cmd("silent! colorscheme matugen")' +qa` for live refresh later)
+
+### Phase: Terra Browser (Firefox Integration)
+- **Status**: Planned
+- **Replaces**: pywalfox + materialized-web
+- **Approach**: A single Firefox extension (and/or native messaging host) that:
+  1. Reads `~/.config/terra/palette.json` directly
+  2. Injects CSS custom properties into web pages (like materialized-web does per-site)
+  3. Styles browser chrome itself (replacing pywalfox's role)
+  4. Polls the palette file or listens for filesystem changes — no Flask server needed
+- **Output**: Extension config / injected styles (no file written by terratheme itself)
+- **Target**: Firefox first; possibly Chromium later
+
+### Phase: Dynamic Cursor Theme
+- **Status**: Planned
+- **Approach**: Instead of hardcoded black/white Bibata cursors that switch with mode, terratheme will:
+  1. Generate a palette-derived cursor color from the active accent (e.g. c4 or on_c4)
+  2. Rebuild the Bibata cursor theme at render time with the generated color
+  3. Cache the result keyed by the color hex value so repeated builds are skipped
+  4. Apply via `hyprctl setcursor <theme> <size>`
+- **Dependencies**: `bibata-cursor-theme` source / build tooling
+- **Output**: `~/.local/share/icons/Bibata-Terra/` (or similar per-color cache dir)
+- **Note**: Long-term, this could be a standalone tool (`tctl cursor`?) that also handles cursor sizing and live switching.
+
+### Dropped / Legacy (No Terratheme Target Planned)
+
+| Former feature | Reason |
+|----------------|--------|
+| **ghostty** | No longer used — foot is the primary terminal |
+| **tshell** | Legacy — no longer used |
+| **pywalfox** | Replaced by Terra Browser integration |
+| **materialized-web** | Replaced by Terra Browser integration (no Flask server needed) |

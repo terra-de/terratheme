@@ -1,4 +1,4 @@
-"""Zellij target — writes a KDL colour theme to ``~/.config/zellij/themes/matugen.kdl``."""
+"""Zellij target — writes a KDL colour theme to ``~/.config/zellij/themes/terratheme.kdl``."""
 
 from __future__ import annotations
 
@@ -40,15 +40,11 @@ def _rgb(hex_str: str) -> str:
 
 
 class ZellijTarget(BaseTarget):
-    """Generate a Zellij theme at ``~/.config/zellij/themes/matugen.kdl``.
-
-    The dotfiles reference ``theme \"matugen\"`` in ``config.kdl``, so this
-    target writes to the same path with the same theme-block name.
-    """
+    """Generate a Zellij theme at ``~/.config/zellij/themes/terratheme.kdl``."""
 
     name = "zellij"
     description = "Zellij terminal multiplexer theme"
-    output_path = "~/.config/zellij/themes/matugen.kdl"
+    output_path = "~/.config/zellij/themes/terratheme.kdl"
 
     def render(self, palette: dict, mode: str) -> str:
         cfg = load_config()
@@ -59,7 +55,7 @@ class ZellijTarget(BaseTarget):
             f"// Mode: {terminal_mode}",
             "",
             "themes {",
-            "    matugen {",
+            "    terratheme {",
         ]
 
         for group_name, tokens in _GROUPS.items():
